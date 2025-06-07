@@ -5,14 +5,11 @@ const supabase = createClientComponentClient()
 export type JournalEntry = {
   id: string
   title: string
-  content: string
+  excerpt: string
   mood: string
   tags: string[]
-  created_at: string
-  updated_at: string
-  user_id: string
-  excerpt?: string
-  date?: string
+  date: string
+  user_id?: string
 }
 
 export async function createJournalEntry(entry: {
@@ -32,15 +29,18 @@ export async function createJournalEntry(entry: {
   // Generate excerpt from content (first 150 characters)
   const excerpt = entry.content.length > 150 ? entry.content.substring(0, 150) + "..." : entry.content
 
+  // Format current date as YYYY-MM-DD
+  const currentDate = new Date().toISOString().split("T")[0]
+
   const { data, error } = await supabase
     .from("entries")
     .insert([
       {
         title: entry.title,
-        content: entry.content,
+        excerpt: excerpt,
         mood: entry.mood,
         tags: entry.tags,
-        excerpt: excerpt,
+        date: currentDate,
         user_id: user.id,
       },
     ])
@@ -64,7 +64,7 @@ export async function getJournalEntries(limit?: number) {
     throw new Error("User not authenticated")
   }
 
-  let query = supabase.from("entries").select("*").eq("user_id", user.id).order("created_at", { ascending: false })
+  let query = supabase.from("entries").select("*").eq("user_id", user.id).order("date", { ascending: false })
 
   if (limit) {
     query = query.limit(limit)
@@ -80,7 +80,7 @@ export async function getJournalEntries(limit?: number) {
   // Format the data for display
   return data.map((entry: any) => ({
     ...entry,
-    date: new Date(entry.created_at).toLocaleDateString(undefined, {
+    displayDate: new Date(entry.date).toLocaleDateString(undefined, {
       year: "numeric",
       month: "long",
       day: "numeric",

@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
-  const [entries, setEntries] = useState<JournalEntry[]>([])
+  const [entries, setEntries] = useState<(JournalEntry & { displayDate?: string })[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const { toast } = useToast()
@@ -64,22 +64,18 @@ export default function Dashboard() {
   }
 
   const getStreakData = () => {
+    if (entries.length === 0) return 0
+
     // Calculate streak based on entries
-    const today = new Date()
-    const yesterday = new Date(today)
+    const today = new Date().toISOString().split("T")[0]
+    const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayStr = yesterday.toISOString().split("T")[0]
 
-    const hasEntryToday = entries.some((entry) => {
-      const entryDate = new Date(entry.created_at)
-      return entryDate.toDateString() === today.toDateString()
-    })
+    const hasEntryToday = entries.some((entry) => entry.date === today)
+    const hasEntryYesterday = entries.some((entry) => entry.date === yesterdayStr)
 
-    const hasEntryYesterday = entries.some((entry) => {
-      const entryDate = new Date(entry.created_at)
-      return entryDate.toDateString() === yesterday.toDateString()
-    })
-
-    // Simple streak calculation (you can make this more sophisticated)
+    // Simple streak calculation
     let currentStreak = 0
     if (hasEntryToday) currentStreak = 1
     if (hasEntryToday && hasEntryYesterday) currentStreak = 2
@@ -233,7 +229,7 @@ export default function Dashboard() {
                 <CardContent>
                   <div className="text-2xl font-bold">{entries.length}</div>
                   <p className="text-xs text-muted-foreground">
-                    {entries.length > 0 ? `Latest: ${entries[0]?.date}` : "No entries yet"}
+                    {entries.length > 0 ? `Latest: ${entries[0]?.displayDate}` : "No entries yet"}
                   </p>
                 </CardContent>
               </Card>
@@ -343,7 +339,7 @@ export default function Dashboard() {
                         <div className="flex justify-between items-start">
                           <div>
                             <CardTitle>{entry.title}</CardTitle>
-                            <CardDescription>{entry.date}</CardDescription>
+                            <CardDescription>{entry.displayDate}</CardDescription>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className={`px-2 py-1 rounded-full text-xs capitalize ${getMoodColor(entry.mood)}`}>
