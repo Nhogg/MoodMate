@@ -11,6 +11,7 @@ import { useAuth } from "@/components/auth-provider"
 import { LogOut, User, RefreshCw } from "lucide-react"
 import { getJournalEntries, type JournalEntry } from "@/lib/journal-functions"
 import { useToast } from "@/hooks/use-toast"
+import { initializeDemoData } from "@/lib/demo-data"
 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
@@ -22,6 +23,12 @@ export default function Dashboard() {
   const fetchEntries = async () => {
     try {
       setIsRefreshing(true)
+
+      // Initialize demo data if it's a demo user
+      if (user?.id === "demo-user-id") {
+        initializeDemoData()
+      }
+
       const fetchedEntries = await getJournalEntries(10) // Get latest 10 entries
       setEntries(fetchedEntries)
     } catch (error) {
@@ -178,6 +185,9 @@ export default function Dashboard() {
                 <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
                 <p className="text-muted-foreground">
                   Welcome back, {user?.email || "devpostdemo"}! Track your journaling progress and mental well-being.
+                  {user?.id === "demo-user-id" && (
+                    <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full">Demo Mode</span>
+                  )}
                 </p>
               </div>
               <div className="flex gap-2">

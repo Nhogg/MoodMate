@@ -5,7 +5,9 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { Session, User } from "@supabase/supabase-js"
-import { supabase } from "@/lib/supabase"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+
+const supabase = createClientComponentClient()
 
 type AuthContextType = {
   user: User | null
@@ -36,40 +38,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    // Check for demo user in localStorage
+    let mounted = true
+
+    // Check for demo user in localStorage first
     const demoUser = localStorage.getItem("demo-user")
-    if (demoUser) {
+    if (demoUser && mounted) {
       const userData = JSON.parse(demoUser)
       setUser(userData)
       setSession({ user: userData } as Session)
+      setIsLoading(false)
+      return
     }
 
-    // Also check for real Supabase session
+    // Check for real Supabase session
+    const getInitialSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (mounted) {
+        setSession(session)
+        setUser(session?.user ?? null)
+        setIsLoading(false)
+      }
+    }
+
+    getInitialSession()
+
+    // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (mounted) {
         setSession(session)
         setUser(session?.user ?? null)
-      }
-      setIsLoading(false)
-    })
+        setIsLoading(false)
 
-    // Initial session fetch
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setSession(session)
-        setUser(session?.user ?? null)
+        if (event === "SIGNED_IN" && session) {
+          router.push("/dashboard")
+          router.refresh()
+        }
+        if (event === "SIGNED_OUT") {
+          router.push("/")
+          router.refresh()
+        }
       }
-      setIsLoading(false)
     })
-
-    setIsLoading(false)
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
     }
-  }, [])
+  }, [router])
 
   const signIn = async (email: string, password: string) => {
     // Check for demo credentials first
@@ -89,31 +109,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Try Supabase authentication for real users
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (!error) {
-      router.push("/dashboard")
-      router.refresh()
-    }
     return { error }
   }
 
   const signUp = async (email: string, password: string) => {
-    // For demo purposes, we'll just try to sign them in
+    // For demo purposes, redirect to sign in
     if (email === DEMO_CREDENTIALS.username) {
       return await signIn(email, password)
     }
 
     // Try Supabase signup for real users
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/dashboard`,
+      },
+    })
+
     if (!error) {
-      // We'll just sign them in directly after signup for this demo
-      await signIn(email, password)
+      // For real users, they'll need to verify their email
+      return { error: null }
     }
+
     return { error }
   }
 
   const signOut = async () => {
     // Clear demo user
     localStorage.removeItem("demo-user")
+    localStorage.removeItem("demo-entries")
 
     // Clear demo user cookie
     document.cookie = "demo-user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
