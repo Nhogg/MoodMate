@@ -18,6 +18,17 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// Demo user credentials
+const DEMO_CREDENTIALS = {
+  username: "devpostdemo",
+  password: "HPAISTUDIO",
+  user: {
+    id: "demo-user-id",
+    email: "devpostdemo@example.com",
+    user_metadata: { name: "Demo User" },
+  },
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -25,20 +36,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
+    // Check for demo user in localStorage
+    const demoUser = localStorage.getItem("demo-user")
+    if (demoUser) {
+      const userData = JSON.parse(demoUser)
+      setUser(userData)
+      setSession({ user: userData } as Session)
+    }
+
+    // Also check for real Supabase session
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
+      if (session) {
+        setSession(session)
+        setUser(session?.user ?? null)
+      }
       setIsLoading(false)
     })
 
     // Initial session fetch
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
+      if (session) {
+        setSession(session)
+        setUser(session?.user ?? null)
+      }
       setIsLoading(false)
     })
+
+    setIsLoading(false)
 
     return () => {
       subscription.unsubscribe()
@@ -46,6 +72,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signIn = async (email: string, password: string) => {
+    // Check for demo credentials first
+    if (email === DEMO_CREDENTIALS.username && password === DEMO_CREDENTIALS.password) {
+      const demoUser = DEMO_CREDENTIALS.user as User
+      setUser(demoUser)
+      setSession({ user: demoUser } as Session)
+      localStorage.setItem("demo-user", JSON.stringify(demoUser))
+
+      // Set cookie for middleware
+      document.cookie = "demo-user=true; path=/; max-age=86400" // 24 hours
+
+      router.push("/dashboard")
+      router.refresh()
+      return { error: null }
+    }
+
+    // Try Supabase authentication for real users
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (!error) {
       router.push("/dashboard")
@@ -55,6 +97,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signUp = async (email: string, password: string) => {
+    // For demo purposes, we'll just try to sign them in
+    if (email === DEMO_CREDENTIALS.username) {
+      return await signIn(email, password)
+    }
+
+    // Try Supabase signup for real users
     const { error } = await supabase.auth.signUp({ email, password })
     if (!error) {
       // We'll just sign them in directly after signup for this demo
@@ -64,6 +112,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    // Clear demo user
+    localStorage.removeItem("demo-user")
+
+    // Clear demo user cookie
+    document.cookie = "demo-user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+
+    setUser(null)
+    setSession(null)
+
+    // Also sign out from Supabase
     await supabase.auth.signOut()
     router.push("/")
     router.refresh()

@@ -29,9 +29,19 @@ export default function LoginPage() {
     const { error } = await signIn(email, password)
 
     if (error) {
-      setError(error.message)
+      if (email !== "devpostdemo" || password !== "HPAISTUDIO") {
+        setError("Invalid credentials. Please use the demo credentials: devpostdemo / HPAISTUDIO")
+      } else {
+        setError(error.message)
+      }
       setIsLoading(false)
     }
+  }
+
+  const fillDemoCredentials = () => {
+    setEmail("devpostdemo")
+    setPassword("HPAISTUDIO")
+    setError(null)
   }
 
   return (
@@ -96,13 +106,20 @@ export default function LoginPage() {
               />
             </div>
             <div className="bg-amber-50 p-3 rounded-md">
-              <p className="text-xs text-amber-800">
-                <strong>Demo Credentials:</strong>
-                <br />
-                Username: devpostdemo
-                <br />
-                Password: HPAISTUDIO
-              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-amber-800">
+                    <strong>Demo Credentials:</strong>
+                    <br />
+                    Username: devpostdemo
+                    <br />
+                    Password: HPAISTUDIO
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={fillDemoCredentials} className="text-xs">
+                  Use Demo
+                </Button>
+              </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
