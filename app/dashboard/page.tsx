@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -8,45 +8,99 @@ import NewEntry from "@/components/new-entry"
 import UploadEntry from "@/components/upload-entry"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/components/auth-provider"
-import { LogOut, User } from "lucide-react"
-
-type Entry = {
-  id: number
-  date: string
-  title: string
-  excerpt: string
-  mood: string
-  tags: string[]
-}
+import { LogOut, User, RefreshCw } from "lucide-react"
+import { getJournalEntries, type JournalEntry } from "@/lib/journal-functions"
+import { useToast } from "@/hooks/use-toast"
 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
-  const [entries, setEntries] = useState<Entry[]>([
-    {
-      id: 1,
-      date: "May 20, 2024",
-      title: "Morning Reflection",
-      excerpt: "Today I woke up feeling refreshed after a good night's sleep...",
-      mood: "Positive",
-      tags: ["morning", "gratitude"],
-    },
-    {
-      id: 2,
-      date: "May 18, 2024",
-      title: "Work Challenges",
-      excerpt: "Had a difficult meeting with the team today. Feeling a bit stressed...",
-      mood: "Stressed",
-      tags: ["work", "challenges"],
-    },
-    {
-      id: 3,
-      date: "May 15, 2024",
-      title: "Evening Walk",
-      excerpt: "Took a long walk by the lake this evening. The sunset was beautiful...",
-      mood: "Peaceful",
-      tags: ["nature", "exercise"],
-    },
-  ])
+  const [entries, setEntries] = useState<JournalEntry[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const { toast } = useToast()
+
+  const fetchEntries = async () => {
+    try {
+      setIsRefreshing(true)
+      const fetchedEntries = await getJournalEntries(10) // Get latest 10 entries
+      setEntries(fetchedEntries)
+    } catch (error) {
+      console.error("Error fetching entries:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load journal entries. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (user) {
+      fetchEntries()
+    }
+  }, [user])
+
+  const handleEntryCreated = () => {
+    fetchEntries() // Refresh entries when a new one is created
+  }
+
+  const getMoodColor = (mood: string) => {
+    const moodColors: { [key: string]: string } = {
+      happy: "bg-green-100 text-green-800",
+      calm: "bg-blue-100 text-blue-800",
+      peaceful: "bg-blue-100 text-blue-800",
+      anxious: "bg-yellow-100 text-yellow-800",
+      sad: "bg-gray-100 text-gray-800",
+      angry: "bg-red-100 text-red-800",
+      stressed: "bg-red-100 text-red-800",
+      grateful: "bg-green-100 text-green-800",
+      confused: "bg-purple-100 text-purple-800",
+      excited: "bg-orange-100 text-orange-800",
+    }
+    return moodColors[mood.toLowerCase()] || "bg-gray-100 text-gray-800"
+  }
+
+  const getStreakData = () => {
+    // Calculate streak based on entries
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const hasEntryToday = entries.some((entry) => {
+      const entryDate = new Date(entry.created_at)
+      return entryDate.toDateString() === today.toDateString()
+    })
+
+    const hasEntryYesterday = entries.some((entry) => {
+      const entryDate = new Date(entry.created_at)
+      return entryDate.toDateString() === yesterday.toDateString()
+    })
+
+    // Simple streak calculation (you can make this more sophisticated)
+    let currentStreak = 0
+    if (hasEntryToday) currentStreak = 1
+    if (hasEntryToday && hasEntryYesterday) currentStreak = 2
+
+    return currentStreak
+  }
+
+  const getMoodTrend = () => {
+    if (entries.length === 0) return "No data"
+
+    const recentEntries = entries.slice(0, 7) // Last 7 entries
+    const positiveMoods = ["happy", "calm", "peaceful", "grateful", "excited"]
+    const positiveCount = recentEntries.filter((entry) => positiveMoods.includes(entry.mood.toLowerCase())).length
+
+    const percentage = (positiveCount / recentEntries.length) * 100
+
+    if (percentage >= 70) return "Very Positive"
+    if (percentage >= 50) return "Positive"
+    if (percentage >= 30) return "Mixed"
+    return "Needs Attention"
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -131,6 +185,10 @@ export default function Dashboard() {
                 </p>
               </div>
               <div className="flex gap-2">
+                <Button variant="outline" onClick={fetchEntries} disabled={isRefreshing}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
                 <Button variant="outline">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -149,24 +207,6 @@ export default function Dashboard() {
                     <path d="M9 21V9" />
                   </svg>
                   View Calendar
-                </Button>
-                <Button>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-4 w-4 mr-2"
-                  >
-                    <path d="M12 5v14" />
-                    <path d="M5 12h14" />
-                  </svg>
-                  New Entry
                 </Button>
               </div>
             </div>
@@ -191,8 +231,10 @@ export default function Dashboard() {
                   </svg>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">24</div>
-                  <p className="text-xs text-muted-foreground">+3 from last week</p>
+                  <div className="text-2xl font-bold">{entries.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {entries.length > 0 ? `Latest: ${entries[0]?.date}` : "No entries yet"}
+                  </p>
                 </CardContent>
               </Card>
               <Card>
@@ -215,8 +257,8 @@ export default function Dashboard() {
                   </svg>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">7 days</div>
-                  <p className="text-xs text-muted-foreground">Your best: 14 days</p>
+                  <div className="text-2xl font-bold">{getStreakData()} days</div>
+                  <p className="text-xs text-muted-foreground">Keep it up!</p>
                 </CardContent>
               </Card>
               <Card>
@@ -241,8 +283,8 @@ export default function Dashboard() {
                   </svg>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">Positive</div>
-                  <p className="text-xs text-muted-foreground">Improving this week</p>
+                  <div className="text-2xl font-bold">{getMoodTrend()}</div>
+                  <p className="text-xs text-muted-foreground">Based on recent entries</p>
                 </CardContent>
               </Card>
               <Card>
@@ -266,8 +308,8 @@ export default function Dashboard() {
                   </svg>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">3 new</div>
-                  <p className="text-xs text-muted-foreground">View your personalized insights</p>
+                  <div className="text-2xl font-bold">Coming Soon</div>
+                  <p className="text-xs text-muted-foreground">AI analysis in development</p>
                 </CardContent>
               </Card>
             </div>
@@ -277,14 +319,22 @@ export default function Dashboard() {
                 <TabsTrigger value="upload">Upload Paper Journal</TabsTrigger>
               </TabsList>
               <TabsContent value="new">
-                <NewEntry />
+                <NewEntry onEntryCreated={handleEntryCreated} />
               </TabsContent>
               <TabsContent value="upload">
                 <UploadEntry />
               </TabsContent>
             </Tabs>
             <div>
-              <h2 className="text-2xl font-bold tracking-tight mb-4">Recent Entries</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold tracking-tight">Recent Entries</h2>
+                {isLoading && (
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Loading...
+                  </div>
+                )}
+              </div>
               <div className="grid gap-4">
                 {entries.length > 0 ? (
                   entries.map((entry) => (
@@ -296,15 +346,7 @@ export default function Dashboard() {
                             <CardDescription>{entry.date}</CardDescription>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs ${
-                                entry.mood === "Positive"
-                                  ? "bg-green-100 text-green-800"
-                                  : entry.mood === "Stressed"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-blue-100 text-blue-800"
-                              }`}
-                            >
+                            <span className={`px-2 py-1 rounded-full text-xs capitalize ${getMoodColor(entry.mood)}`}>
                               {entry.mood}
                             </span>
                           </div>
@@ -312,22 +354,51 @@ export default function Dashboard() {
                       </CardHeader>
                       <CardContent>
                         <p className="text-muted-foreground">{entry.excerpt}</p>
-                        <div className="flex gap-2 mt-2">
-                          {entry.tags.map((tag) => (
-                            <span key={tag} className="bg-slate-100 px-2 py-1 rounded-full text-xs">
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
+                        {entry.tags && entry.tags.length > 0 && (
+                          <div className="flex gap-2 mt-2 flex-wrap">
+                            {entry.tags.map((tag, index) => (
+                              <span key={index} className="bg-slate-100 px-2 py-1 rounded-full text-xs">
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))
                 ) : (
-                  <p className="text-muted-foreground">No entries yet.</p>
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="48"
+                        height="48"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-12 w-12 text-muted-foreground mb-4"
+                      >
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" x2="8" y1="13" y2="13" />
+                        <line x1="16" x2="8" y1="17" y2="17" />
+                        <line x1="10" x2="8" y1="9" y2="9" />
+                      </svg>
+                      <h3 className="text-lg font-semibold mb-2">No journal entries yet</h3>
+                      <p className="text-muted-foreground text-center mb-4">
+                        Start your journaling journey by creating your first entry above.
+                      </p>
+                    </CardContent>
+                  </Card>
                 )}
-                <Button variant="outline" className="w-full">
-                  View All Entries
-                </Button>
+                {entries.length > 0 && (
+                  <Button variant="outline" className="w-full">
+                    View All Entries ({entries.length})
+                  </Button>
+                )}
               </div>
             </div>
           </div>

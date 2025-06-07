@@ -9,30 +9,74 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { createJournalEntry } from "@/lib/journal-functions"
+import { useToast } from "@/hooks/use-toast"
 
-export default function NewEntry() {
+interface NewEntryProps {
+  onEntryCreated?: () => void
+}
+
+export default function NewEntry({ onEntryCreated }: NewEntryProps) {
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [mood, setMood] = useState("")
   const [tags, setTags] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    try {
+      // Parse tags from comma-separated string
+      const tagArray = tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0)
 
-    // Reset form
-    setTitle("")
-    setContent("")
-    setMood("")
-    setTags("")
-    setIsSubmitting(false)
+      await createJournalEntry({
+        title,
+        content,
+        mood,
+        tags: tagArray,
+      })
 
-    // Show success message (in a real app, you'd use a toast or other notification)
-    alert("Journal entry saved successfully!")
+      // Reset form
+      setTitle("")
+      setContent("")
+      setMood("")
+      setTags("")
+
+      toast({
+        title: "Success!",
+        description: "Your journal entry has been saved.",
+        variant: "default",
+      })
+
+      // Notify parent component to refresh entries
+      if (onEntryCreated) {
+        onEntryCreated()
+      }
+    } catch (error) {
+      console.error("Error saving journal entry:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save your journal entry. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const addPromptToContent = (prompt: string) => {
+    setContent((prev) => {
+      if (prev.length > 0 && !prev.endsWith("\n")) {
+        return prev + "\n\n" + prompt
+      }
+      return prev + prompt
+    })
   }
 
   return (
@@ -66,7 +110,7 @@ export default function NewEntry() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="mood">Current Mood</Label>
-              <Select value={mood} onValueChange={setMood}>
+              <Select value={mood} onValueChange={setMood} required>
                 <SelectTrigger id="mood">
                   <SelectValue placeholder="Select your mood" />
                 </SelectTrigger>
@@ -79,6 +123,8 @@ export default function NewEntry() {
                   <SelectItem value="stressed">Stressed</SelectItem>
                   <SelectItem value="grateful">Grateful</SelectItem>
                   <SelectItem value="confused">Confused</SelectItem>
+                  <SelectItem value="excited">Excited</SelectItem>
+                  <SelectItem value="peaceful">Peaceful</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -112,14 +158,14 @@ export default function NewEntry() {
               </svg>
               AI-Powered Prompts
             </h3>
-            <p className="text-sm text-teal-700">Need inspiration? Try one of these prompts:</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+            <p className="text-sm text-teal-700 mb-2">Need inspiration? Try one of these prompts:</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="justify-start text-left h-auto py-2 border-teal-200 hover:bg-teal-100"
-                onClick={() => setContent((prev) => prev + "Today I'm feeling grateful for...")}
+                onClick={() => addPromptToContent("Today I'm feeling grateful for...")}
               >
                 What are you grateful for today?
               </Button>
@@ -128,7 +174,7 @@ export default function NewEntry() {
                 variant="outline"
                 size="sm"
                 className="justify-start text-left h-auto py-2 border-teal-200 hover:bg-teal-100"
-                onClick={() => setContent((prev) => prev + "A challenge I'm currently facing is...")}
+                onClick={() => addPromptToContent("A challenge I'm currently facing is...")}
               >
                 What challenges are you facing?
               </Button>
@@ -137,7 +183,7 @@ export default function NewEntry() {
                 variant="outline"
                 size="sm"
                 className="justify-start text-left h-auto py-2 border-teal-200 hover:bg-teal-100"
-                onClick={() => setContent((prev) => prev + "Something I accomplished today was...")}
+                onClick={() => addPromptToContent("Something I accomplished today was...")}
               >
                 What did you accomplish today?
               </Button>
@@ -146,7 +192,7 @@ export default function NewEntry() {
                 variant="outline"
                 size="sm"
                 className="justify-start text-left h-auto py-2 border-teal-200 hover:bg-teal-100"
-                onClick={() => setContent((prev) => prev + "My intention for tomorrow is...")}
+                onClick={() => addPromptToContent("My intention for tomorrow is...")}
               >
                 What are your intentions for tomorrow?
               </Button>
@@ -154,10 +200,10 @@ export default function NewEntry() {
           </div>
         </CardContent>
         <CardFooter className="flex justify-between">
-          <Button type="button" variant="outline">
+          <Button type="button" variant="outline" disabled={isSubmitting}>
             Save as Draft
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || !title || !content || !mood}>
             {isSubmitting ? "Saving..." : "Save Journal Entry"}
           </Button>
         </CardFooter>
