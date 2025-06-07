@@ -17,7 +17,7 @@ export default function HeroSection() {
               </p>
             </div>
             <div className="flex flex-col gap-2 min-[400px]:flex-row">
-              <Link href="/dashboard">
+              <Link href="/auth/signup">
                 <Button size="lg" className="px-8">
                   Start Journaling
                 </Button>

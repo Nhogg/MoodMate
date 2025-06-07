@@ -44,10 +44,10 @@ export default function Home() {
             </Link>
           </nav>
           <div className="flex items-center gap-4">
-            <Link href="/dashboard">
+            <Link href="/auth/login">
               <Button variant="outline">Log In</Button>
             </Link>
-            <Link href="/dashboard">
+            <Link href="/auth/signup">
               <Button>Get Started</Button>
             </Link>
           </div>
@@ -65,7 +65,7 @@ export default function Home() {
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
               Join thousands of users who have improved their mental well-being through AI-enhanced journaling.
             </p>
-            <Link href="/dashboard">
+            <Link href="/auth/signup">
               <Button size="lg" className="px-8">
                 Start Your Journal Today
               </Button>
