@@ -1,65 +1,137 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-// TODO: Add your Gemini API key here
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "YOUR_GEMINI_API_KEY_HERE"
+// Add your Gemini API key here
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
 export async function POST(request: NextRequest) {
   try {
     const { content, emotion, emotion_probabilities, mood } = await request.json()
 
-    // TODO: Replace with actual Gemini API endpoint
-    const prompt = `
-    Analyze this journal entry and provide insights and suggestions:
-    
-    Content: ${content}
-    User's reported mood: ${mood}
-    AI-detected emotion: ${emotion}
-    Emotion probabilities: ${JSON.stringify(emotion_probabilities)}
-    
-    Please provide:
-    1. Insights about the user's emotional state and patterns
-    2. Constructive suggestions for mental well-being
-    3. Any notable observations about the writing
-    
-    Keep the response supportive, professional, and helpful.
-    `
-
-    // For now, return a mock response until you set up Gemini
-    const mockResponse = {
-      insights: `Based on your journal entry, I can see that you're experiencing ${emotion} emotions. Your writing shows thoughtful reflection, and the emotional analysis indicates a ${
-        emotion_probabilities?.joy > 0.3 ? "generally positive" : "mixed emotional"
-      } state.`,
-      suggestions: `Consider practicing mindfulness techniques, maintaining regular journaling habits, and focusing on activities that bring you joy. If you're feeling overwhelmed, remember that it's okay to seek support from friends, family, or professionals.`,
+    if (!GEMINI_API_KEY) {
+      return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 })
     }
 
-    // TODO: Uncomment and modify this when you have Gemini set up
-    /*
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GEMINI_API_KEY}`
+    // Create a detailed prompt for Gemini
+    const prompt = `
+You are a compassionate AI mental health assistant analyzing a journal entry. Please provide thoughtful insights and constructive suggestions.
+
+JOURNAL ENTRY:
+"${content}"
+
+EMOTIONAL DATA:
+- User's self-reported mood: ${mood}
+- AI-detected primary emotion: ${emotion}
+- Emotion analysis breakdown: ${JSON.stringify(emotion_probabilities, null, 2)}
+
+Please analyze this journal entry and provide:
+
+1. INSIGHTS (2-3 sentences): 
+   - Emotional patterns you notice
+   - What the writing reveals about their mental state
+   - Any positive aspects or concerning patterns
+
+2. SUGGESTIONS (2-3 actionable recommendations):
+   - Specific mental health practices
+   - Coping strategies relevant to their emotional state
+   - Activities or mindset shifts that could help
+
+Keep your response supportive, professional, and encouraging. Focus on mental wellness and personal growth.
+
+Format your response as:
+INSIGHTS: [your insights here]
+SUGGESTIONS: [your suggestions here]
+`
+
+    // Call Gemini API
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE",
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE",
+            },
+            {
+              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE",
+            },
+            {
+              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE",
+            },
+          ],
+        }),
       },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      })
-    });
+    )
 
-    const data = await response.json();
-    const aiResponse = data.candidates[0].content.parts[0].text;
-    
+    if (!response.ok) {
+      const errorData = await response.text()
+      console.error("Gemini API error:", errorData)
+      throw new Error(`Gemini API responded with status: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error("Invalid response from Gemini API")
+    }
+
+    const aiResponse = data.candidates[0].content.parts[0].text
+
     // Parse the AI response to extract insights and suggestions
-    const insights = aiResponse.split('Suggestions:')[0].replace('Insights:', '').trim();
-    const suggestions = aiResponse.split('Suggestions:')[1]?.trim() || '';
-    */
+    const insightsMatch = aiResponse.match(/INSIGHTS:\s*(.*?)(?=SUGGESTIONS:|$)/s)
+    const suggestionsMatch = aiResponse.match(/SUGGESTIONS:\s*(.*?)$/s)
 
-    return NextResponse.json(mockResponse)
+    const insights = insightsMatch
+      ? insightsMatch[1].trim()
+      : aiResponse.split("\n")[0] || "Unable to generate insights at this time."
+    const suggestions = suggestionsMatch
+      ? suggestionsMatch[1].trim()
+      : "Continue journaling regularly to track your emotional patterns and consider speaking with a mental health professional if you need additional support."
+
+    return NextResponse.json({
+      insights,
+      suggestions,
+      raw_response: aiResponse, // Include full response for debugging
+    })
   } catch (error) {
     console.error("Error generating insights:", error)
-    return NextResponse.json({ error: "Failed to generate insights" }, { status: 500 })
+
+    // Provide a meaningful fallback response
+    const { emotion, mood } = await request.json()
+    const fallbackInsights = `Based on your journal entry expressing ${emotion} emotions and ${mood} mood, I can see you're processing your experiences thoughtfully. Your willingness to reflect through writing shows emotional awareness and a commitment to understanding your mental state.`
+
+    const fallbackSuggestions = `Consider continuing your journaling practice as it's a valuable tool for emotional processing. If you're experiencing difficult emotions, try mindfulness techniques, gentle physical activity, or reaching out to supportive friends or family. Remember that seeking professional support is always a healthy choice when needed.`
+
+    return NextResponse.json({
+      insights: fallbackInsights,
+      suggestions: fallbackSuggestions,
+      fallback: true,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    })
   }
 }
