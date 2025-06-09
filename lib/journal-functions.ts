@@ -24,6 +24,7 @@ export type JournalEntry = {
   user_id?: string | null
   created_at?: string
   updated_at?: string
+  source?: string
 }
 
 // Emotion classification function - now uses Next.js API route
@@ -73,6 +74,9 @@ async function getCurrentUser() {
     error,
   } = await supabase.auth.getUser()
 
+  console.log("getCurrentUser - Supabase user:", user)
+  console.log("getCurrentUser - Supabase error:", error)
+
   if (user && !error) {
     return { user, isDemo: false }
   }
@@ -81,10 +85,12 @@ async function getCurrentUser() {
   const demoUser = localStorage.getItem("demo-user")
   if (demoUser) {
     const userData = JSON.parse(demoUser)
+    console.log("getCurrentUser - Demo user:", userData)
     return { user: userData, isDemo: true }
   }
 
   // If no user at all, return null user_id for public access
+  console.log("getCurrentUser - No user found")
   return { user: { id: null }, isDemo: true }
 }
 
@@ -112,8 +118,12 @@ export async function createJournalEntry(entry: {
   mood: string
   tags: string[]
 }) {
+  console.log("createJournalEntry called with:", entry)
+
   const { user, isDemo } = await getCurrentUser()
   const forceMode = getForceMode()
+
+  console.log("User info:", { user, isDemo, forceMode })
 
   // Generate excerpt from content (first 150 characters)
   const excerpt = entry.content.length > 150 ? entry.content.substring(0, 150) + "..." : entry.content
@@ -136,8 +146,11 @@ export async function createJournalEntry(entry: {
     user_id: user.id,
   }
 
-  // Use localStorage if in demo mode or forced
-  if (isDemo || forceMode === "localStorage") {
+  console.log("Entry data to save:", entryData)
+
+  // Use localStorage if in demo mode or forced (but NOT if forced to database)
+  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+    console.log("Saving to localStorage")
     // For demo users, store in localStorage
     const existingEntries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     const newEntry = {
@@ -154,17 +167,28 @@ export async function createJournalEntry(entry: {
 
   // For real users or forced database mode, save to Supabase
   try {
+    console.log("Attempting to save to Supabase database")
+
     const { data, error } = await supabase.from("entries").insert([entryData]).select().single()
+
+    console.log("Supabase insert result:", { data, error })
 
     if (error) {
       console.error("Error creating journal entry in database:", error)
+      throw new Error(`Database error: ${error.message} (Code: ${error.code})`)
+    }
+
+    console.log("Successfully saved to database:", data)
+    return { ...data, source: "database" }
+  } catch (error) {
+    console.error("Failed to save to database, error details:", error)
+
+    // If we're forced to use database, don't fall back
+    if (forceMode === "database") {
       throw error
     }
 
-    return { ...data, source: "database" }
-  } catch (error) {
-    console.error("Failed to save to database, falling back to localStorage", error)
-
+    console.log("Falling back to localStorage")
     // Fallback to localStorage if database fails
     const existingEntries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     const newEntry = {
@@ -184,8 +208,11 @@ export async function getJournalEntries(limit?: number) {
   const { user, isDemo } = await getCurrentUser()
   const forceMode = getForceMode()
 
-  // Use localStorage if in demo mode or forced
-  if (isDemo || forceMode === "localStorage") {
+  console.log("getJournalEntries - User info:", { user, isDemo, forceMode })
+
+  // Use localStorage if in demo mode or forced (but NOT if forced to database)
+  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+    console.log("Getting entries from localStorage")
     // For demo users, get from localStorage
     const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     const limitedEntries = limit ? entries.slice(0, limit) : entries
@@ -203,11 +230,16 @@ export async function getJournalEntries(limit?: number) {
 
   // For real users or forced database mode, get from Supabase
   try {
+    console.log("Getting entries from Supabase database")
+
     let query = supabase.from("entries").select("*").order("date", { ascending: false })
 
     // Only filter by user_id if it's not null
     if (user.id) {
       query = query.eq("user_id", user.id)
+      console.log("Filtering by user_id:", user.id)
+    } else {
+      console.log("No user_id filter applied")
     }
 
     if (limit) {
@@ -216,13 +248,15 @@ export async function getJournalEntries(limit?: number) {
 
     const { data, error } = await query
 
+    console.log("Supabase query result:", { data, error })
+
     if (error) {
       console.error("Error fetching journal entries from database:", error)
       throw error
     }
 
     // Format the data for display
-    return data.map((entry: any) => ({
+    const formattedData = data.map((entry: any) => ({
       ...entry,
       source: "database",
       displayDate: new Date(entry.date).toLocaleDateString(undefined, {
@@ -231,9 +265,18 @@ export async function getJournalEntries(limit?: number) {
         day: "numeric",
       }),
     }))
-  } catch (error) {
-    console.error("Failed to fetch from database, falling back to localStorage", error)
 
+    console.log("Formatted database entries:", formattedData)
+    return formattedData
+  } catch (error) {
+    console.error("Failed to fetch from database:", error)
+
+    // If we're forced to use database, don't fall back
+    if (forceMode === "database") {
+      throw error
+    }
+
+    console.log("Falling back to localStorage")
     // Fallback to localStorage if database fails
     const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     const limitedEntries = limit ? entries.slice(0, limit) : entries
@@ -247,5 +290,169 @@ export async function getJournalEntries(limit?: number) {
         day: "numeric",
       }),
     }))
+  }
+}
+
+export async function getJournalEntriesByDateRange(startDate: string, endDate: string) {
+  const { user, isDemo } = await getCurrentUser()
+  const forceMode = getForceMode()
+
+  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+    const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
+    return entries.filter((entry: any) => entry.date >= startDate && entry.date <= endDate)
+  }
+
+  let query = supabase
+    .from("entries")
+    .select("*")
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .order("date", { ascending: false })
+
+  // Only filter by user_id if it's not null
+  if (user.id) {
+    query = query.eq("user_id", user.id)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error("Error fetching entries by date range:", error)
+    throw error
+  }
+
+  return data
+}
+
+export async function getJournalEntryById(id: string | number) {
+  const { user, isDemo } = await getCurrentUser()
+  const forceMode = getForceMode()
+
+  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+    const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
+    return entries.find((entry: any) => entry.id === id)
+  }
+
+  let query = supabase.from("entries").select("*").eq("id", id)
+
+  // Only filter by user_id if it's not null
+  if (user.id) {
+    query = query.eq("user_id", user.id)
+  }
+
+  const { data, error } = await query.single()
+
+  if (error) {
+    console.error("Error fetching entry by ID:", error)
+    throw error
+  }
+
+  return data
+}
+
+export async function generateAIInsights(entryId: string | number) {
+  const entry = await getJournalEntryById(entryId)
+  if (!entry) throw new Error("Entry not found")
+
+  try {
+    console.log("Generating AI insights for entry:", entryId)
+
+    // Call the AI insights API route
+    const response = await fetch("/api/generate-insights", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        content: entry.content || entry.excerpt, // Use excerpt if content is null
+        emotion: entry.emotion,
+        emotion_probabilities: entry.emotion_probabilities,
+        mood: entry.mood,
+      }),
+    })
+
+    console.log("AI insights API response status:", response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("AI insights API error:", errorText)
+      throw new Error(`Failed to generate AI insights: ${response.status} ${errorText}`)
+    }
+
+    const data = await response.json()
+    console.log("AI insights API response data:", data)
+
+    // Update the entry with AI insights
+    await updateJournalEntry(entryId, {
+      ai_insights: data.insights,
+      ai_suggestions: data.suggestions,
+    })
+
+    return data
+  } catch (error) {
+    console.error("Error generating AI insights:", error)
+    throw error
+  }
+}
+
+export async function updateJournalEntry(id: string | number, updates: Partial<JournalEntry>) {
+  const { user, isDemo } = await getCurrentUser()
+  const forceMode = getForceMode()
+
+  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+    // For demo users, update in localStorage
+    const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
+    const entryIndex = entries.findIndex((entry: any) => entry.id === id)
+    if (entryIndex !== -1) {
+      entries[entryIndex] = { ...entries[entryIndex], ...updates, updated_at: new Date().toISOString() }
+      localStorage.setItem("demo-entries", JSON.stringify(entries))
+      return entries[entryIndex]
+    }
+    throw new Error("Entry not found")
+  }
+
+  // For real users, update in Supabase
+  let query = supabase.from("entries").update(updates).eq("id", id)
+
+  // Only filter by user_id if it's not null
+  if (user.id) {
+    query = query.eq("user_id", user.id)
+  }
+
+  const { data, error } = await query.select().single()
+
+  if (error) {
+    console.error("Error updating journal entry:", error)
+    throw error
+  }
+
+  return data
+}
+
+export async function deleteJournalEntry(id: string | number) {
+  const { user, isDemo } = await getCurrentUser()
+  const forceMode = getForceMode()
+
+  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+    // For demo users, remove from localStorage
+    const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
+    const filteredEntries = entries.filter((entry: any) => entry.id !== id)
+    localStorage.setItem("demo-entries", JSON.stringify(filteredEntries))
+    return
+  }
+
+  // For real users, delete from Supabase
+  let query = supabase.from("entries").delete().eq("id", id)
+
+  // Only filter by user_id if it's not null
+  if (user.id) {
+    query = query.eq("user_id", user.id)
+  }
+
+  const { error } = await query
+
+  if (error) {
+    console.error("Error deleting journal entry:", error)
+    throw error
   }
 }

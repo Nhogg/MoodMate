@@ -4,11 +4,27 @@ export async function POST(request: NextRequest) {
   try {
     const { content, emotion, emotion_probabilities, mood } = await request.json()
 
+    console.log("Generate insights called with:", { content: content?.substring(0, 100), emotion, mood })
+
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
     if (!GEMINI_API_KEY) {
       console.error("GEMINI_API_KEY not found in environment variables")
-      return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 })
+      console.log(
+        "Available env vars:",
+        Object.keys(process.env).filter((key) => key.includes("GEMINI")),
+      )
+
+      // Return fallback response
+      const fallbackInsights = `Based on your journal entry expressing ${emotion || "various"} emotions and ${mood} mood, I can see you're processing your experiences thoughtfully. Your willingness to reflect through writing shows emotional awareness and a commitment to understanding your mental state.`
+      const fallbackSuggestions = `Consider continuing your journaling practice as it's a valuable tool for emotional processing. If you're experiencing difficult emotions, try mindfulness techniques, gentle physical activity, or reaching out to supportive friends or family. Remember that seeking professional support is always a healthy choice when needed.`
+
+      return NextResponse.json({
+        insights: fallbackInsights,
+        suggestions: fallbackSuggestions,
+        fallback: true,
+        error: "Gemini API key not configured",
+      })
     }
 
     console.log("Using Gemini API key:", GEMINI_API_KEY.substring(0, 10) + "...")
@@ -42,10 +58,10 @@ Format your response as:
 INSIGHTS: [your insights here]
 SUGGESTIONS: [your suggestions here]`
 
-    // Updated Gemini API endpoint - this is the correct one
+    // Updated Gemini API endpoint
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`
 
-    console.log("Making request to:", apiUrl.replace(GEMINI_API_KEY, "***"))
+    console.log("Making request to Gemini API...")
 
     const requestBody = {
       contents: [
@@ -83,8 +99,6 @@ SUGGESTIONS: [your suggestions here]`
       ],
     }
 
-    console.log("Request body:", JSON.stringify(requestBody, null, 2))
-
     // Call Gemini API
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -94,8 +108,7 @@ SUGGESTIONS: [your suggestions here]`
       body: JSON.stringify(requestBody),
     })
 
-    console.log("Response status:", response.status)
-    console.log("Response headers:", Object.fromEntries(response.headers.entries()))
+    console.log("Gemini API response status:", response.status)
 
     if (!response.ok) {
       const errorData = await response.text()
@@ -104,20 +117,40 @@ SUGGESTIONS: [your suggestions here]`
       // Try to parse error for more details
       try {
         const errorJson = JSON.parse(errorData)
-        console.error("Parsed error:", errorJson)
+        console.error("Parsed Gemini error:", errorJson)
       } catch (e) {
-        console.error("Could not parse error as JSON")
+        console.error("Could not parse Gemini error as JSON")
       }
 
-      throw new Error(`Gemini API responded with status: ${response.status}. Error: ${errorData}`)
+      // Return fallback response
+      const fallbackInsights = `Based on your journal entry expressing ${emotion || "various"} emotions and ${mood} mood, I can see you're processing your experiences thoughtfully. Your willingness to reflect through writing shows emotional awareness and a commitment to understanding your mental state.`
+      const fallbackSuggestions = `Consider continuing your journaling practice as it's a valuable tool for emotional processing. If you're experiencing difficult emotions, try mindfulness techniques, gentle physical activity, or reaching out to supportive friends or family. Remember that seeking professional support is always a healthy choice when needed.`
+
+      return NextResponse.json({
+        insights: fallbackInsights,
+        suggestions: fallbackSuggestions,
+        fallback: true,
+        error: `Gemini API error: ${response.status}`,
+        details: errorData,
+      })
     }
 
     const data = await response.json()
-    console.log("Gemini API response:", JSON.stringify(data, null, 2))
+    console.log("Gemini API success response received")
 
     if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      console.error("Invalid response structure:", data)
-      throw new Error("Invalid response from Gemini API")
+      console.error("Invalid Gemini response structure:", data)
+
+      // Return fallback response
+      const fallbackInsights = `Based on your journal entry expressing ${emotion || "various"} emotions and ${mood} mood, I can see you're processing your experiences thoughtfully. Your willingness to reflect through writing shows emotional awareness and a commitment to understanding your mental state.`
+      const fallbackSuggestions = `Consider continuing your journaling practice as it's a valuable tool for emotional processing. If you're experiencing difficult emotions, try mindfulness techniques, gentle physical activity, or reaching out to supportive friends or family. Remember that seeking professional support is always a healthy choice when needed.`
+
+      return NextResponse.json({
+        insights: fallbackInsights,
+        suggestions: fallbackSuggestions,
+        fallback: true,
+        error: "Invalid response from Gemini API",
+      })
     }
 
     const aiResponse = data.candidates[0].content.parts[0].text
@@ -133,6 +166,8 @@ SUGGESTIONS: [your suggestions here]`
       ? suggestionsMatch[1].trim()
       : "Continue journaling regularly to track your emotional patterns and consider speaking with a mental health professional if you need additional support."
 
+    console.log("Successfully generated insights and suggestions")
+
     return NextResponse.json({
       insights,
       suggestions,
@@ -145,7 +180,7 @@ SUGGESTIONS: [your suggestions here]`
     // Provide a meaningful fallback response
     try {
       const { emotion, mood } = await request.json()
-      const fallbackInsights = `Based on your journal entry expressing ${emotion} emotions and ${mood} mood, I can see you're processing your experiences thoughtfully. Your willingness to reflect through writing shows emotional awareness and a commitment to understanding your mental state.`
+      const fallbackInsights = `Based on your journal entry expressing ${emotion || "various"} emotions and ${mood} mood, I can see you're processing your experiences thoughtfully. Your willingness to reflect through writing shows emotional awareness and a commitment to understanding your mental state.`
 
       const fallbackSuggestions = `Consider continuing your journaling practice as it's a valuable tool for emotional processing. If you're experiencing difficult emotions, try mindfulness techniques, gentle physical activity, or reaching out to supportive friends or family. Remember that seeking professional support is always a healthy choice when needed.`
 
