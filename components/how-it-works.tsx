@@ -43,11 +43,6 @@ export default function HowItWorks() {
         </div>
         <div className="mt-16 flex justify-center">
           <div className="relative w-full max-w-4xl rounded-lg overflow-hidden shadow-xl">
-            <img
-              alt="How the journaling app works"
-              className="object-cover w-full"
-              src="/placeholder.svg?height=500&width=1200"
-            />
           </div>
         </div>
       </div>

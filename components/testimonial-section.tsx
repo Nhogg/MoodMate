@@ -22,13 +22,14 @@ export default function TestimonialSection() {
                   </span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Jamie D.</p>
+                  <p className="text-sm font-medium">Emma S.</p>
                   <p className="text-xs text-gray-500">Using for 6 months</p>
                 </div>
               </div>
               <p className="text-gray-500 italic">
-                "I've struggled with anxiety for years. This app has helped me identify triggers I never noticed before.
-                The AI insights are surprisingly accurate and have helped me develop better coping strategies."
+                "This app has completely changed how I approach journaling. The AI insights help me understand my
+                emotions better, and the guided prompts keep me motivated to write every day. It's like having a personal
+                therapist in my pocket!"
               </p>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
@@ -95,14 +96,12 @@ export default function TestimonialSection() {
                   </span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Michael T.</p>
+                  <p className="text-sm font-medium">Noah W.</p>
                   <p className="text-xs text-gray-500">Using for 3 months</p>
                 </div>
               </div>
               <p className="text-gray-500 italic">
-                "I've always kept a paper journal but never had the time to review and reflect. Being able to upload
-                photos of my entries and get AI insights has been game-changing. I'm seeing patterns I never noticed
-                before."
+                "This app has been a game-changer for my mental health. The AI-generated insights help me recognize patterns in my mood and behavior that I never noticed before. It's like having a personal coach that guides me through my thoughts and feelings."
               </p>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
@@ -169,13 +168,12 @@ export default function TestimonialSection() {
                   </span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Sarah R.</p>
+                  <p className="text-sm font-medium">Cate W.</p>
                   <p className="text-xs text-gray-500">Using for 1 year</p>
                 </div>
               </div>
               <p className="text-gray-500 italic">
-                "As a therapist, I recommend this app to my clients. The guided prompts are therapeutic, and the AI
-                insights help them see progress between our sessions. It's become an invaluable tool in my practice."
+              "This app has been a lifesaver for me. The AI-generated insights have helped me identify triggers for my anxiety and depression, and the journaling prompts keep me focused on my mental health journey. I can't imagine going back to traditional journaling after using this app!"  
               </p>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
