@@ -8,7 +8,7 @@ import NewEntry from "@/components/new-entry"
 import UploadEntry from "@/components/upload-entry"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/components/auth-provider"
-import { LogOut, User, RefreshCw } from "lucide-react"
+import { LogOut, User, RefreshCw, Brain, Calendar } from "lucide-react"
 import { getJournalEntries, type JournalEntry } from "@/lib/journal-functions"
 import { useToast } from "@/hooks/use-toast"
 import { initializeDemoData } from "@/lib/demo-data"
@@ -66,6 +66,12 @@ export default function Dashboard() {
       grateful: "bg-green-100 text-green-800",
       confused: "bg-purple-100 text-purple-800",
       excited: "bg-orange-100 text-orange-800",
+      joy: "bg-green-100 text-green-800",
+      anger: "bg-red-100 text-red-800",
+      sadness: "bg-blue-100 text-blue-800",
+      fear: "bg-purple-100 text-purple-800",
+      disgust: "bg-yellow-100 text-yellow-800",
+      neutral: "bg-gray-100 text-gray-800",
     }
     return moodColors[mood.toLowerCase()] || "bg-gray-100 text-gray-800"
   }
@@ -94,8 +100,10 @@ export default function Dashboard() {
     if (entries.length === 0) return "No data"
 
     const recentEntries = entries.slice(0, 7) // Last 7 entries
-    const positiveMoods = ["happy", "calm", "peaceful", "grateful", "excited"]
-    const positiveCount = recentEntries.filter((entry) => positiveMoods.includes(entry.mood.toLowerCase())).length
+    const positiveMoods = ["happy", "calm", "peaceful", "grateful", "excited", "joy"]
+    const positiveCount = recentEntries.filter((entry) =>
+      positiveMoods.includes((entry.emotion || entry.mood).toLowerCase()),
+    ).length
 
     const percentage = (positiveCount / recentEntries.length) * 100
 
@@ -103,6 +111,10 @@ export default function Dashboard() {
     if (percentage >= 50) return "Positive"
     if (percentage >= 30) return "Mixed"
     return "Needs Attention"
+  }
+
+  const getAIInsightsCount = () => {
+    return entries.filter((entry) => entry.ai_insights || entry.ai_suggestions).length
   }
 
   return (
@@ -132,17 +144,14 @@ export default function Dashboard() {
             </Link>
           </div>
           <nav className="flex items-center gap-6">
-            <Link href="/dashboard" className="text-sm font-medium">
+            <Link href="/dashboard" className="text-sm font-medium text-teal-600">
               Dashboard
             </Link>
-            <Link href="/dashboard" className="text-sm font-medium">
+            <Link href="/insights" className="text-sm font-medium hover:text-teal-600">
               Insights
             </Link>
-            <Link href="/dashboard" className="text-sm font-medium">
-              History
-            </Link>
-            <Link href="/dashboard" className="text-sm font-medium">
-              Settings
+            <Link href="/calendar" className="text-sm font-medium hover:text-teal-600">
+              Calendar
             </Link>
           </nav>
           <div className="flex items-center gap-4">
@@ -195,25 +204,18 @@ export default function Dashboard() {
                   <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
                   Refresh
                 </Button>
-                <Button variant="outline">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-4 w-4 mr-2"
-                  >
-                    <rect width="18" height="18" x="3" y="3" rx="2" />
-                    <path d="M3 9h18" />
-                    <path d="M9 21V9" />
-                  </svg>
-                  View Calendar
-                </Button>
+                <Link href="/calendar">
+                  <Button variant="outline">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    View Calendar
+                  </Button>
+                </Link>
+                <Link href="/insights">
+                  <Button variant="outline">
+                    <Brain className="h-4 w-4 mr-2" />
+                    AI Insights
+                  </Button>
+                </Link>
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -296,26 +298,11 @@ export default function Dashboard() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">AI Insights</CardTitle>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-4 w-4 text-muted-foreground"
-                  >
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                    <polyline points="3.29 7 12 12 20.71 7" />
-                    <line x1="12" x2="12" y1="22" y2="12" />
-                  </svg>
+                  <Brain className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">Coming Soon</div>
-                  <p className="text-xs text-muted-foreground">AI analysis in development</p>
+                  <div className="text-2xl font-bold">{getAIInsightsCount()}</div>
+                  <p className="text-xs text-muted-foreground">Entries with AI analysis</p>
                 </CardContent>
               </Card>
             </div>
@@ -355,6 +342,13 @@ export default function Dashboard() {
                             <span className={`px-2 py-1 rounded-full text-xs capitalize ${getMoodColor(entry.mood)}`}>
                               {entry.mood}
                             </span>
+                            {entry.emotion && (
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs capitalize ${getMoodColor(entry.emotion)}`}
+                              >
+                                AI: {entry.emotion}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </CardHeader>
@@ -367,6 +361,14 @@ export default function Dashboard() {
                                 #{tag}
                               </span>
                             ))}
+                          </div>
+                        )}
+                        {entry.emotion_probabilities && (
+                          <div className="mt-2">
+                            <p className="text-xs text-muted-foreground">
+                              Emotion confidence:{" "}
+                              {(Math.max(...Object.values(entry.emotion_probabilities)) * 100).toFixed(1)}%
+                            </p>
                           </div>
                         )}
                       </CardContent>

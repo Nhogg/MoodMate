@@ -5,11 +5,51 @@ const supabase = createClientComponentClient()
 export type JournalEntry = {
   id: string
   title: string
+  content: string
   excerpt: string
   mood: string
   tags: string[]
   date: string
+  emotion?: string
+  emotion_probabilities?: {
+    anger: number
+    disgust: number
+    fear: number
+    joy: number
+    neutral: number
+    sadness: number
+  }
+  ai_insights?: string
+  ai_suggestions?: string
   user_id?: string
+  created_at?: string
+  updated_at?: string
+}
+
+// Emotion classification function
+async function classifyEmotion(text: string) {
+  try {
+    const response = await fetch("http://127.0.0.1:8000/predict/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    })
+
+    if (!response.ok) {
+      throw new Error("Failed to classify emotion")
+    }
+
+    const data = await response.json()
+    return {
+      emotion: data.emotion,
+      probabilities: data.probabilities,
+    }
+  } catch (error) {
+    console.error("Error classifying emotion:", error)
+    return null
+  }
 }
 
 // Get current user (handles both real and demo users)
@@ -48,12 +88,18 @@ export async function createJournalEntry(entry: {
   // Format current date as YYYY-MM-DD
   const currentDate = new Date().toISOString().split("T")[0]
 
+  // Classify emotion
+  const emotionData = await classifyEmotion(entry.content)
+
   const entryData = {
     title: entry.title,
+    content: entry.content,
     excerpt: excerpt,
     mood: entry.mood,
     tags: entry.tags,
     date: currentDate,
+    emotion: emotionData?.emotion || null,
+    emotion_probabilities: emotionData?.probabilities || null,
     user_id: user.id,
   }
 
@@ -63,6 +109,8 @@ export async function createJournalEntry(entry: {
     const newEntry = {
       ...entryData,
       id: `demo-${Date.now()}`, // Generate a simple ID for demo
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
     existingEntries.unshift(newEntry)
     localStorage.setItem("demo-entries", JSON.stringify(existingEntries))
@@ -123,6 +171,86 @@ export async function getJournalEntries(limit?: number) {
   }))
 }
 
+export async function getJournalEntriesByDateRange(startDate: string, endDate: string) {
+  const { user, isDemo } = await getCurrentUser()
+
+  if (isDemo) {
+    const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
+    return entries.filter((entry: any) => entry.date >= startDate && entry.date <= endDate)
+  }
+
+  const { data, error } = await supabase
+    .from("entries")
+    .select("*")
+    .eq("user_id", user.id)
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .order("date", { ascending: false })
+
+  if (error) {
+    console.error("Error fetching entries by date range:", error)
+    throw error
+  }
+
+  return data
+}
+
+export async function getJournalEntryById(id: string) {
+  const { user, isDemo } = await getCurrentUser()
+
+  if (isDemo) {
+    const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
+    return entries.find((entry: any) => entry.id === id)
+  }
+
+  const { data, error } = await supabase.from("entries").select("*").eq("id", id).eq("user_id", user.id).single()
+
+  if (error) {
+    console.error("Error fetching entry by ID:", error)
+    throw error
+  }
+
+  return data
+}
+
+export async function generateAIInsights(entryId: string) {
+  const entry = await getJournalEntryById(entryId)
+  if (!entry) throw new Error("Entry not found")
+
+  try {
+    // TODO: Replace with your Gemini API endpoint
+    const response = await fetch("/api/generate-insights", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        content: entry.content,
+        emotion: entry.emotion,
+        emotion_probabilities: entry.emotion_probabilities,
+        mood: entry.mood,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error("Failed to generate AI insights")
+    }
+
+    const data = await response.json()
+
+    // Update the entry with AI insights
+    await updateJournalEntry(entryId, {
+      ai_insights: data.insights,
+      ai_suggestions: data.suggestions,
+    })
+
+    return data
+  } catch (error) {
+    console.error("Error generating AI insights:", error)
+    throw error
+  }
+}
+
 export async function updateJournalEntry(id: string, updates: Partial<JournalEntry>) {
   const { user, isDemo } = await getCurrentUser()
 
@@ -131,7 +259,7 @@ export async function updateJournalEntry(id: string, updates: Partial<JournalEnt
     const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     const entryIndex = entries.findIndex((entry: any) => entry.id === id)
     if (entryIndex !== -1) {
-      entries[entryIndex] = { ...entries[entryIndex], ...updates }
+      entries[entryIndex] = { ...entries[entryIndex], ...updates, updated_at: new Date().toISOString() }
       localStorage.setItem("demo-entries", JSON.stringify(entries))
       return entries[entryIndex]
     }
