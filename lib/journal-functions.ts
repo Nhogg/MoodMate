@@ -3,14 +3,14 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 const supabase = createClientComponentClient()
 
 export type JournalEntry = {
-  id: string
+  id: string | number
   title: string
-  content: string
+  content: string | null
   excerpt: string
   mood: string
-  tags: string[]
+  tags: string[] | null
   date: string
-  emotion?: string
+  emotion?: string | null
   emotion_probabilities?: {
     anger: number
     disgust: number
@@ -18,10 +18,10 @@ export type JournalEntry = {
     joy: number
     neutral: number
     sadness: number
-  }
-  ai_insights?: string
-  ai_suggestions?: string
-  user_id?: string
+  } | null
+  ai_insights?: string | null
+  ai_suggestions?: string | null
+  user_id?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -84,7 +84,8 @@ async function getCurrentUser() {
     return { user: userData, isDemo: true }
   }
 
-  throw new Error("User not authenticated")
+  // If no user at all, return null user_id for public access
+  return { user: { id: null }, isDemo: true }
 }
 
 export async function createJournalEntry(entry: {
@@ -160,7 +161,12 @@ export async function getJournalEntries(limit?: number) {
   }
 
   // For real users, get from Supabase
-  let query = supabase.from("entries").select("*").eq("user_id", user.id).order("date", { ascending: false })
+  let query = supabase.from("entries").select("*").order("date", { ascending: false })
+
+  // Only filter by user_id if it's not null
+  if (user.id) {
+    query = query.eq("user_id", user.id)
+  }
 
   if (limit) {
     query = query.limit(limit)
@@ -192,13 +198,19 @@ export async function getJournalEntriesByDateRange(startDate: string, endDate: s
     return entries.filter((entry: any) => entry.date >= startDate && entry.date <= endDate)
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("entries")
     .select("*")
-    .eq("user_id", user.id)
     .gte("date", startDate)
     .lte("date", endDate)
     .order("date", { ascending: false })
+
+  // Only filter by user_id if it's not null
+  if (user.id) {
+    query = query.eq("user_id", user.id)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     console.error("Error fetching entries by date range:", error)
@@ -208,7 +220,7 @@ export async function getJournalEntriesByDateRange(startDate: string, endDate: s
   return data
 }
 
-export async function getJournalEntryById(id: string) {
+export async function getJournalEntryById(id: string | number) {
   const { user, isDemo } = await getCurrentUser()
 
   if (isDemo) {
@@ -216,7 +228,14 @@ export async function getJournalEntryById(id: string) {
     return entries.find((entry: any) => entry.id === id)
   }
 
-  const { data, error } = await supabase.from("entries").select("*").eq("id", id).eq("user_id", user.id).single()
+  let query = supabase.from("entries").select("*").eq("id", id)
+
+  // Only filter by user_id if it's not null
+  if (user.id) {
+    query = query.eq("user_id", user.id)
+  }
+
+  const { data, error } = await query.single()
 
   if (error) {
     console.error("Error fetching entry by ID:", error)
@@ -226,7 +245,7 @@ export async function getJournalEntryById(id: string) {
   return data
 }
 
-export async function generateAIInsights(entryId: string) {
+export async function generateAIInsights(entryId: string | number) {
   const entry = await getJournalEntryById(entryId)
   if (!entry) throw new Error("Entry not found")
 
@@ -238,7 +257,7 @@ export async function generateAIInsights(entryId: string) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        content: entry.content,
+        content: entry.content || entry.excerpt, // Use excerpt if content is null
         emotion: entry.emotion,
         emotion_probabilities: entry.emotion_probabilities,
         mood: entry.mood,
@@ -264,7 +283,7 @@ export async function generateAIInsights(entryId: string) {
   }
 }
 
-export async function updateJournalEntry(id: string, updates: Partial<JournalEntry>) {
+export async function updateJournalEntry(id: string | number, updates: Partial<JournalEntry>) {
   const { user, isDemo } = await getCurrentUser()
 
   if (isDemo) {
@@ -280,13 +299,14 @@ export async function updateJournalEntry(id: string, updates: Partial<JournalEnt
   }
 
   // For real users, update in Supabase
-  const { data, error } = await supabase
-    .from("entries")
-    .update(updates)
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .select()
-    .single()
+  let query = supabase.from("entries").update(updates).eq("id", id)
+
+  // Only filter by user_id if it's not null
+  if (user.id) {
+    query = query.eq("user_id", user.id)
+  }
+
+  const { data, error } = await query.select().single()
 
   if (error) {
     console.error("Error updating journal entry:", error)
@@ -296,7 +316,7 @@ export async function updateJournalEntry(id: string, updates: Partial<JournalEnt
   return data
 }
 
-export async function deleteJournalEntry(id: string) {
+export async function deleteJournalEntry(id: string | number) {
   const { user, isDemo } = await getCurrentUser()
 
   if (isDemo) {
@@ -308,7 +328,14 @@ export async function deleteJournalEntry(id: string) {
   }
 
   // For real users, delete from Supabase
-  const { error } = await supabase.from("entries").delete().eq("id", id).eq("user_id", user.id)
+  let query = supabase.from("entries").delete().eq("id", id)
+
+  // Only filter by user_id if it's not null
+  if (user.id) {
+    query = query.eq("user_id", user.id)
+  }
+
+  const { error } = await query
 
   if (error) {
     console.error("Error deleting journal entry:", error)

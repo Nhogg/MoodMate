@@ -12,6 +12,20 @@ export async function POST() {
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
+    // First, get the existing entries to check user_id
+    const { data: existingEntries, error: fetchError } = await supabase.from("entries").select("user_id").limit(1)
+
+    if (fetchError) {
+      console.error("Error fetching existing entries:", fetchError)
+      return NextResponse.json({ error: fetchError.message }, { status: 500 })
+    }
+
+    // Use the existing user_id if available, otherwise use null (public)
+    const userId =
+      existingEntries && existingEntries.length > 0 && existingEntries[0].user_id ? existingEntries[0].user_id : null
+
+    console.log("Using user_id:", userId)
+
     // Create historical entries with different dates
     const historicalEntries = [
       {
@@ -32,7 +46,7 @@ export async function POST() {
         },
         tags: ["new-year", "goals", "mental-health"],
         date: "2024-01-01",
-        user_id: "demo-user-id", // You might need to change this to your actual user ID
+        user_id: userId,
       },
       {
         title: "Work Stress",
@@ -52,7 +66,7 @@ export async function POST() {
         },
         tags: ["work", "stress", "deadlines"],
         date: "2024-01-15",
-        user_id: "demo-user-id",
+        user_id: userId,
       },
       {
         title: "Weekend Relaxation",
@@ -71,7 +85,7 @@ export async function POST() {
         },
         tags: ["weekend", "relaxation", "friends"],
         date: "2024-02-03",
-        user_id: "demo-user-id",
+        user_id: userId,
       },
       {
         title: "Feeling Grateful",
@@ -91,7 +105,7 @@ export async function POST() {
         },
         tags: ["gratitude", "family", "perspective"],
         date: "2024-02-14",
-        user_id: "demo-user-id",
+        user_id: userId,
       },
       {
         title: "Anxiety About Future",
@@ -111,7 +125,7 @@ export async function POST() {
         },
         tags: ["anxiety", "future", "uncertainty"],
         date: "2024-03-01",
-        user_id: "demo-user-id",
+        user_id: userId,
       },
     ]
 
