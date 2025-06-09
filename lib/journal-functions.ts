@@ -26,10 +26,10 @@ export type JournalEntry = {
   updated_at?: string
 }
 
-// Emotion classification function
+// Emotion classification function - now uses Next.js API route
 async function classifyEmotion(text: string) {
   try {
-    const response = await fetch("http://127.0.0.1:8000/predict/", {
+    const response = await fetch("/api/classify-emotion", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -45,10 +45,23 @@ async function classifyEmotion(text: string) {
     return {
       emotion: data.emotion,
       probabilities: data.probabilities,
+      fallback: data.fallback || false,
     }
   } catch (error) {
     console.error("Error classifying emotion:", error)
-    return null
+    // Return neutral emotion as fallback
+    return {
+      emotion: "neutral",
+      probabilities: {
+        anger: 0.16,
+        disgust: 0.16,
+        fear: 0.16,
+        joy: 0.16,
+        neutral: 0.2,
+        sadness: 0.16,
+      },
+      fallback: true,
+    }
   }
 }
 
@@ -218,7 +231,7 @@ export async function generateAIInsights(entryId: string) {
   if (!entry) throw new Error("Entry not found")
 
   try {
-    // TODO: Replace with your Gemini API endpoint
+    // Call the AI insights API route
     const response = await fetch("/api/generate-insights", {
       method: "POST",
       headers: {

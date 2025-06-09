@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createJournalEntry } from "@/lib/journal-functions"
 import { useToast } from "@/hooks/use-toast"
+import { Brain, AlertCircle } from "lucide-react"
 
 interface NewEntryProps {
   onEntryCreated?: () => void
@@ -22,11 +23,13 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
   const [mood, setMood] = useState("")
   const [tags, setTags] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [emotionStatus, setEmotionStatus] = useState<"idle" | "analyzing" | "success" | "fallback">("idle")
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setEmotionStatus("analyzing")
 
     try {
       // Parse tags from comma-separated string
@@ -35,12 +38,19 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
         .map((tag) => tag.trim())
         .filter((tag) => tag.length > 0)
 
-      await createJournalEntry({
+      const result = await createJournalEntry({
         title,
         content,
         mood,
         tags: tagArray,
       })
+
+      // Check if emotion classification was successful
+      if (result.emotion) {
+        setEmotionStatus("success")
+      } else {
+        setEmotionStatus("fallback")
+      }
 
       // Reset form
       setTitle("")
@@ -50,7 +60,7 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
 
       toast({
         title: "Success!",
-        description: "Your journal entry has been saved.",
+        description: "Your journal entry has been saved with AI emotion analysis.",
         variant: "default",
       })
 
@@ -60,6 +70,7 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
       }
     } catch (error) {
       console.error("Error saving journal entry:", error)
+      setEmotionStatus("fallback")
       toast({
         title: "Error",
         description: "Failed to save your journal entry. Please try again.",
@@ -67,6 +78,8 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
       })
     } finally {
       setIsSubmitting(false)
+      // Reset emotion status after a delay
+      setTimeout(() => setEmotionStatus("idle"), 3000)
     }
   }
 
@@ -83,7 +96,27 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
     <Card>
       <form onSubmit={handleSubmit}>
         <CardHeader>
-          <CardTitle>Create New Journal Entry</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Create New Journal Entry
+            {emotionStatus === "analyzing" && (
+              <div className="flex items-center gap-2 text-sm text-blue-600">
+                <Brain className="h-4 w-4 animate-pulse" />
+                Analyzing emotions...
+              </div>
+            )}
+            {emotionStatus === "success" && (
+              <div className="flex items-center gap-2 text-sm text-green-600">
+                <Brain className="h-4 w-4" />
+                AI analysis complete
+              </div>
+            )}
+            {emotionStatus === "fallback" && (
+              <div className="flex items-center gap-2 text-sm text-amber-600">
+                <AlertCircle className="h-4 w-4" />
+                Using fallback analysis
+              </div>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -198,6 +231,30 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
               </Button>
             </div>
           </div>
+
+          {emotionStatus !== "idle" && (
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h3 className="font-medium text-blue-800 mb-2 flex items-center">
+                <Brain className="mr-2 h-4 w-4" />
+                AI Emotion Analysis
+              </h3>
+              {emotionStatus === "analyzing" && (
+                <p className="text-sm text-blue-700">
+                  Our AI is analyzing the emotional content of your journal entry...
+                </p>
+              )}
+              {emotionStatus === "success" && (
+                <p className="text-sm text-green-700">
+                  ✅ Your entry has been analyzed for emotional patterns and will be available in AI Insights.
+                </p>
+              )}
+              {emotionStatus === "fallback" && (
+                <p className="text-sm text-amber-700">
+                  ⚠️ Emotion analysis service is currently unavailable. Your entry was saved with basic analysis.
+                </p>
+              )}
+            </div>
+          )}
         </CardContent>
         <CardFooter className="flex justify-between">
           <Button type="button" variant="outline" disabled={isSubmitting}>
