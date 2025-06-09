@@ -12,6 +12,7 @@ import { LogOut, User, RefreshCw, Brain, Calendar } from "lucide-react"
 import { getJournalEntries, type JournalEntry } from "@/lib/journal-functions"
 import { useToast } from "@/hooks/use-toast"
 import { initializeDemoData } from "@/lib/demo-data"
+import DataSourceControl from "@/components/data-source-control"
 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
@@ -200,6 +201,9 @@ export default function Dashboard() {
                 </p>
               </div>
               <div className="flex gap-2">
+                {/* Add the DataSourceControl component here */}
+                <DataSourceControl />
+
                 <Button variant="outline" onClick={fetchEntries} disabled={isRefreshing}>
                   <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
                   Refresh
