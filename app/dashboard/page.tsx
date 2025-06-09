@@ -3,16 +3,13 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import NewEntry from "@/components/new-entry"
-import UploadEntry from "@/components/upload-entry"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/components/auth-provider"
 import { LogOut, User, RefreshCw, Brain, Calendar } from "lucide-react"
 import { getJournalEntries, type JournalEntry } from "@/lib/journal-functions"
 import { useToast } from "@/hooks/use-toast"
 import { initializeDemoData } from "@/lib/demo-data"
-import DataSourceControl from "@/components/data-source-control"
 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
@@ -140,7 +137,7 @@ export default function Dashboard() {
                   <path d="M10.96 12.48a2.67 2.67 0 1 1-5.33 0 2.67 2.67 0 0 1 5.33 0z" />
                   <path d="M18.67 19.15c-.24-1.94-1.7-3.48-3.67-3.48h-1.47c-1.97 0-3.43 1.54-3.67 3.48" />
                 </svg>
-                <span className="text-xl font-semibold">MindfulJournal</span>
+                <span className="text-xl font-semibold">MoodMate</span>
               </div>
             </Link>
           </div>
@@ -201,9 +198,6 @@ export default function Dashboard() {
                 </p>
               </div>
               <div className="flex gap-2">
-                {/* Add the DataSourceControl component here */}
-                <DataSourceControl />
-
                 <Button variant="outline" onClick={fetchEntries} disabled={isRefreshing}>
                   <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
                   Refresh
@@ -310,18 +304,7 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
-            <Tabs defaultValue="new" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="new">New Entry</TabsTrigger>
-                <TabsTrigger value="upload">Upload Paper Journal</TabsTrigger>
-              </TabsList>
-              <TabsContent value="new">
-                <NewEntry onEntryCreated={handleEntryCreated} />
-              </TabsContent>
-              <TabsContent value="upload">
-                <UploadEntry />
-              </TabsContent>
-            </Tabs>
+            <NewEntry onEntryCreated={handleEntryCreated} />
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold tracking-tight">Recent Entries</h2>

@@ -27,7 +27,7 @@ export default function Home() {
               <path d="M10.96 12.48a2.67 2.67 0 1 1-5.33 0 2.67 2.67 0 0 1 5.33 0z" />
               <path d="M18.67 19.15c-.24-1.94-1.7-3.48-3.67-3.48h-1.47c-1.97 0-3.43 1.54-3.67 3.48" />
             </svg>
-            <span className="text-xl font-semibold">MindfulJournal</span>
+            <span className="text-xl font-semibold">MoodMate</span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
             <Link href="#features" className="text-sm font-medium hover:underline">
@@ -75,7 +75,7 @@ export default function Home() {
       </main>
       <footer className="border-t py-6 md:py-0">
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4 md:h-16">
-          <p className="text-sm text-muted-foreground">© 2024 MindfulJournal. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© 2024 MoodMate. All rights reserved.</p>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="#" className="text-muted-foreground hover:underline">
               Privacy

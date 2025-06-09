@@ -9,8 +9,8 @@ import { ToastProvider } from "@/components/toast-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "MindfulJournal - AI-Powered Journaling for Mental Health",
-  description: "Enhance your mental well-being through AI-powered journaling",
+  title: "MoodMate - AI-Powered Journaling for Mental Health",
+  description: "Enhance your mental well-being through AI-powered journaling with MoodMate",
   generator: "v0.dev",
 }
 
@@ -27,7 +27,7 @@ export default function RootLayout({
           defaultTheme="light"
           enableSystem={false}
           disableTransitionOnChange
-          storageKey="mindful-journal-theme"
+          storageKey="moodmate-theme"
         >
           <AuthProvider>
             {children}

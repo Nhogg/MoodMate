@@ -65,7 +65,7 @@ export default function LoginPage() {
                 <path d="M10.96 12.48a2.67 2.67 0 1 1-5.33 0 2.67 2.67 0 0 1 5.33 0z" />
                 <path d="M18.67 19.15c-.24-1.94-1.7-3.48-3.67-3.48h-1.47c-1.97 0-3.43 1.54-3.67 3.48" />
               </svg>
-              <span className="text-xl font-semibold">MindfulJournal</span>
+              <span className="text-xl font-semibold">MoodMate</span>
             </Link>
           </div>
           <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
