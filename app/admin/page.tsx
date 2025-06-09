@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/components/auth-provider"
-import { AlertTriangle, Database, Trash2, Plus } from "lucide-react"
+import { AlertTriangle, Database, Trash2, Plus, Wrench } from "lucide-react"
 
 export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -60,6 +60,21 @@ export default function AdminPage() {
     }
   }
 
+  const fixTableStructure = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch("/api/admin/fix-table", {
+        method: "POST",
+      })
+      const data = await response.json()
+      setResult(data)
+    } catch (error) {
+      setResult({ error: error instanceof Error ? error.message : "Unknown error" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="container py-8">
       <Card className="mb-8">
@@ -81,20 +96,25 @@ export default function AdminPage() {
             </AlertDescription>
           </Alert>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Button onClick={viewAllEntries} disabled={isLoading} variant="outline">
               <Database className="h-4 w-4 mr-2" />
               View All Entries
             </Button>
 
-            <Button onClick={clearAllEntries} disabled={isLoading} variant="destructive">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear All Entries
+            <Button onClick={fixTableStructure} disabled={isLoading} variant="secondary">
+              <Wrench className="h-4 w-4 mr-2" />
+              Fix Table Structure
             </Button>
 
             <Button onClick={addHistoricalEntries} disabled={isLoading}>
               <Plus className="h-4 w-4 mr-2" />
               Add Historical Data
+            </Button>
+
+            <Button onClick={clearAllEntries} disabled={isLoading} variant="destructive">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear All Entries
             </Button>
           </div>
 

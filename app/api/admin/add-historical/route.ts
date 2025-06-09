@@ -12,7 +12,17 @@ export async function POST() {
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // First, get the existing entries to check user_id
+    // First, check what columns exist in the table
+    const { data: tableInfo, error: tableError } = await supabase.from("entries").select("*").limit(1)
+
+    if (tableError) {
+      console.error("Error checking table structure:", tableError)
+      return NextResponse.json({ error: tableError.message }, { status: 500 })
+    }
+
+    console.log("Table structure sample:", tableInfo)
+
+    // Get the existing entries to check user_id
     const { data: existingEntries, error: fetchError } = await supabase.from("entries").select("user_id").limit(1)
 
     if (fetchError) {
@@ -26,7 +36,7 @@ export async function POST() {
 
     console.log("Using user_id:", userId)
 
-    // Create historical entries with different dates
+    // Create historical entries with only the columns that exist
     const historicalEntries = [
       {
         title: "New Year Reflections",
@@ -134,7 +144,14 @@ export async function POST() {
 
     if (error) {
       console.error("Error adding historical entries:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: error.message,
+          details: error,
+          sampleEntry: historicalEntries[0], // Include sample for debugging
+        },
+        { status: 500 },
+      )
     }
 
     return NextResponse.json({
