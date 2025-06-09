@@ -16,39 +16,66 @@ export default function Dashboard() {
   const [entries, setEntries] = useState<(JournalEntry & { displayDate?: string })[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
   const fetchEntries = async () => {
     try {
       setIsRefreshing(true)
+      setError(null)
+
+      console.log("Dashboard: Fetching entries, user:", user)
 
       // Initialize demo data if it's a demo user
       if (user?.id === "demo-user-id") {
+        console.log("Dashboard: Initializing demo data")
         initializeDemoData()
       }
 
-      const fetchedEntries = await getJournalEntries(10) // Get latest 10 entries
-      setEntries(fetchedEntries)
+      // Fetch entries with a small delay to ensure localStorage is updated
+      setTimeout(async () => {
+        try {
+          const fetchedEntries = await getJournalEntries(10) // Get latest 10 entries
+          console.log("Dashboard: Fetched entries:", fetchedEntries)
+          setEntries(fetchedEntries)
+        } catch (fetchError) {
+          console.error("Dashboard: Error in delayed fetch:", fetchError)
+          setError(fetchError instanceof Error ? fetchError.message : "Unknown error fetching entries")
+          toast({
+            title: "Error",
+            description: "Failed to load journal entries. Please try again.",
+            variant: "destructive",
+          })
+        } finally {
+          setIsLoading(false)
+          setIsRefreshing(false)
+        }
+      }, 100)
     } catch (error) {
-      console.error("Error fetching entries:", error)
+      console.error("Dashboard: Error fetching entries:", error)
+      setError(error instanceof Error ? error.message : "Unknown error fetching entries")
       toast({
         title: "Error",
         description: "Failed to load journal entries. Please try again.",
         variant: "destructive",
       })
-    } finally {
       setIsLoading(false)
       setIsRefreshing(false)
     }
   }
 
   useEffect(() => {
+    console.log("Dashboard: useEffect triggered, user:", user)
     if (user) {
       fetchEntries()
+    } else {
+      console.log("Dashboard: No user available yet")
+      setIsLoading(false)
     }
   }, [user])
 
   const handleEntryCreated = () => {
+    console.log("Dashboard: Entry created, refreshing entries")
     fetchEntries() // Refresh entries when a new one is created
   }
 
@@ -71,7 +98,7 @@ export default function Dashboard() {
       disgust: "bg-yellow-100 text-yellow-800",
       neutral: "bg-gray-100 text-gray-800",
     }
-    return moodColors[mood.toLowerCase()] || "bg-gray-100 text-gray-800"
+    return moodColors[mood?.toLowerCase()] || "bg-gray-100 text-gray-800"
   }
 
   const getStreakData = () => {
@@ -99,9 +126,10 @@ export default function Dashboard() {
 
     const recentEntries = entries.slice(0, 7) // Last 7 entries
     const positiveMoods = ["happy", "calm", "peaceful", "grateful", "excited", "joy"]
-    const positiveCount = recentEntries.filter((entry) =>
-      positiveMoods.includes((entry.emotion || entry.mood).toLowerCase()),
-    ).length
+    const positiveCount = recentEntries.filter((entry) => {
+      const moodToCheck = (entry.emotion || entry.mood || "").toLowerCase()
+      return positiveMoods.includes(moodToCheck)
+    }).length
 
     const percentage = (positiveCount / recentEntries.length) * 100
 
@@ -315,6 +343,18 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md mb-4">
+                  <strong>Error loading entries:</strong> {error}
+                  <div className="mt-2">
+                    <Button variant="outline" size="sm" onClick={fetchEntries}>
+                      Try Again
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-4">
                 {entries.length > 0 ? (
                   entries.map((entry) => (
@@ -358,10 +398,15 @@ export default function Dashboard() {
                             </p>
                           </div>
                         )}
+                        {entry.source && (
+                          <div className="mt-2">
+                            <p className="text-xs text-muted-foreground">Source: {entry.source}</p>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))
-                ) : (
+                ) : !isLoading ? (
                   <Card>
                     <CardContent className="flex flex-col items-center justify-center py-12">
                       <svg
@@ -388,7 +433,7 @@ export default function Dashboard() {
                       </p>
                     </CardContent>
                   </Card>
-                )}
+                ) : null}
                 {entries.length > 0 && (
                   <Button variant="outline" className="w-full">
                     View All Entries ({entries.length})
