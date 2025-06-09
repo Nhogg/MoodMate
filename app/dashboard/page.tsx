@@ -7,7 +7,7 @@ import NewEntry from "@/components/new-entry"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/components/auth-provider"
 import { LogOut, User, RefreshCw, Brain, Calendar } from "lucide-react"
-import { getJournalEntries, type JournalEntry } from "@/lib/journal-functions"
+import { getJournalEntries, syncDatabaseToLocalStorage, type JournalEntry } from "@/lib/journal-functions"
 import { useToast } from "@/hooks/use-toast"
 import { initializeDemoData } from "@/lib/demo-data"
 
@@ -30,35 +30,24 @@ export default function Dashboard() {
       if (user?.id === "demo-user-id") {
         console.log("Dashboard: Initializing demo data")
         initializeDemoData()
+      } else {
+        // For real users, sync from database to localStorage
+        console.log("Dashboard: Syncing database to localStorage")
+        await syncDatabaseToLocalStorage()
       }
 
-      // Fetch entries with a small delay to ensure localStorage is updated
-      setTimeout(async () => {
-        try {
-          const fetchedEntries = await getJournalEntries(10) // Get latest 10 entries
-          console.log("Dashboard: Fetched entries:", fetchedEntries)
-          setEntries(fetchedEntries)
-        } catch (fetchError) {
-          console.error("Dashboard: Error in delayed fetch:", fetchError)
-          setError(fetchError instanceof Error ? fetchError.message : "Unknown error fetching entries")
-          toast({
-            title: "Error",
-            description: "Failed to load journal entries. Please try again.",
-            variant: "destructive",
-          })
-        } finally {
-          setIsLoading(false)
-          setIsRefreshing(false)
-        }
-      }, 100)
-    } catch (error) {
-      console.error("Dashboard: Error fetching entries:", error)
-      setError(error instanceof Error ? error.message : "Unknown error fetching entries")
+      const fetchedEntries = await getJournalEntries(10) // Get latest 10 entries
+      console.log("Dashboard: Fetched entries:", fetchedEntries)
+      setEntries(fetchedEntries)
+    } catch (fetchError) {
+      console.error("Dashboard: Error fetching entries:", fetchError)
+      setError(fetchError instanceof Error ? fetchError.message : "Unknown error fetching entries")
       toast({
         title: "Error",
         description: "Failed to load journal entries. Please try again.",
         variant: "destructive",
       })
+    } finally {
       setIsLoading(false)
       setIsRefreshing(false)
     }
