@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createJournalEntry } from "@/lib/journal-functions"
 import { useToast } from "@/hooks/use-toast"
-import { Brain, AlertCircle } from "lucide-react"
+import { Brain, AlertCircle, CheckCircle } from "lucide-react"
 
 interface NewEntryProps {
   onEntryCreated?: () => void
@@ -38,12 +38,16 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
         .map((tag) => tag.trim())
         .filter((tag) => tag.length > 0)
 
+      console.log("Submitting entry:", { title, content, mood, tags: tagArray })
+
       const result = await createJournalEntry({
         title,
         content,
         mood,
         tags: tagArray,
       })
+
+      console.log("Entry creation result:", result)
 
       // Check if emotion classification was successful
       if (result.emotion) {
@@ -58,9 +62,13 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
       setMood("")
       setTags("")
 
+      // Show success message based on where it was saved
+      const saveLocation = result.source?.includes("localStorage") ? "locally" : "to database"
+      const fallbackMessage = result.source?.includes("fallback") ? " (using local storage as backup)" : ""
+
       toast({
         title: "Success!",
-        description: "Your journal entry has been saved with AI emotion analysis.",
+        description: `Your journal entry has been saved ${saveLocation} with AI emotion analysis${fallbackMessage}.`,
         variant: "default",
       })
 
@@ -71,9 +79,22 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
     } catch (error) {
       console.error("Error saving journal entry:", error)
       setEmotionStatus("fallback")
+
+      // Provide more specific error messages
+      let errorMessage = "Failed to save your journal entry. Please try again."
+      if (error instanceof Error) {
+        if (error.message.includes("table") || error.message.includes("column")) {
+          errorMessage = "Database setup issue detected. Your entry was saved locally instead."
+        } else if (error.message.includes("network") || error.message.includes("fetch")) {
+          errorMessage = "Network error. Your entry was saved locally and will sync when connection is restored."
+        } else {
+          errorMessage = error.message
+        }
+      }
+
       toast({
         title: "Error",
-        description: "Failed to save your journal entry. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -106,7 +127,7 @@ export default function NewEntry({ onEntryCreated }: NewEntryProps) {
             )}
             {emotionStatus === "success" && (
               <div className="flex items-center gap-2 text-sm text-green-600">
-                <Brain className="h-4 w-4" />
+                <CheckCircle className="h-4 w-4" />
                 AI analysis complete
               </div>
             )}

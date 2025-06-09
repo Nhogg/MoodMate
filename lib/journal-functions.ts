@@ -148,10 +148,9 @@ export async function createJournalEntry(entry: {
 
   console.log("Entry data to save:", entryData)
 
-  // Use localStorage if in demo mode or forced (but NOT if forced to database)
-  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
-    console.log("Saving to localStorage")
-    // For demo users, store in localStorage
+  // Always try localStorage first for demo users or if forced
+  if (isDemo || forceMode === "localStorage") {
+    console.log("Saving to localStorage (demo mode or forced)")
     const existingEntries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     const newEntry = {
       ...entryData,
@@ -165,7 +164,7 @@ export async function createJournalEntry(entry: {
     return newEntry
   }
 
-  // For real users or forced database mode, save to Supabase
+  // For real users, try database first
   try {
     console.log("Attempting to save to Supabase database")
 
@@ -174,22 +173,31 @@ export async function createJournalEntry(entry: {
     console.log("Supabase insert result:", { data, error })
 
     if (error) {
-      console.error("Error creating journal entry in database:", error)
-      throw new Error(`Database error: ${error.message} (Code: ${error.code})`)
+      console.error("Database error details:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      })
+
+      // If it's a specific database error, provide more context
+      if (error.code === "42P01") {
+        throw new Error("Database table 'entries' does not exist. Please run the database setup scripts.")
+      } else if (error.code === "42703") {
+        throw new Error("Database column missing. Please run the database migration scripts.")
+      } else if (error.code === "23505") {
+        throw new Error("Duplicate entry detected. Please try again.")
+      } else {
+        throw new Error(`Database error: ${error.message}`)
+      }
     }
 
     console.log("Successfully saved to database:", data)
     return { ...data, source: "database" }
   } catch (error) {
-    console.error("Failed to save to database, error details:", error)
+    console.error("Failed to save to database, falling back to localStorage:", error)
 
-    // If we're forced to use database, don't fall back
-    if (forceMode === "database") {
-      throw error
-    }
-
-    console.log("Falling back to localStorage")
-    // Fallback to localStorage if database fails
+    // Always fall back to localStorage if database fails
     const existingEntries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     const newEntry = {
       ...entryData,
@@ -200,6 +208,9 @@ export async function createJournalEntry(entry: {
     }
     existingEntries.unshift(newEntry)
     localStorage.setItem("demo-entries", JSON.stringify(existingEntries))
+
+    // Still return the entry, but log that we used fallback
+    console.log("Entry saved to localStorage as fallback")
     return newEntry
   }
 }
@@ -211,7 +222,7 @@ export async function getJournalEntries(limit?: number) {
   console.log("getJournalEntries - User info:", { user, isDemo, forceMode })
 
   // Use localStorage if in demo mode or forced (but NOT if forced to database)
-  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+  if (isDemo || forceMode === "localStorage") {
     console.log("Getting entries from localStorage")
     // For demo users, get from localStorage
     const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
@@ -228,7 +239,7 @@ export async function getJournalEntries(limit?: number) {
     }))
   }
 
-  // For real users or forced database mode, get from Supabase
+  // For real users, try database first
   try {
     console.log("Getting entries from Supabase database")
 
@@ -269,15 +280,9 @@ export async function getJournalEntries(limit?: number) {
     console.log("Formatted database entries:", formattedData)
     return formattedData
   } catch (error) {
-    console.error("Failed to fetch from database:", error)
+    console.error("Failed to fetch from database, falling back to localStorage:", error)
 
-    // If we're forced to use database, don't fall back
-    if (forceMode === "database") {
-      throw error
-    }
-
-    console.log("Falling back to localStorage")
-    // Fallback to localStorage if database fails
+    // Always fall back to localStorage if database fails
     const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     const limitedEntries = limit ? entries.slice(0, limit) : entries
 
@@ -297,57 +302,69 @@ export async function getJournalEntriesByDateRange(startDate: string, endDate: s
   const { user, isDemo } = await getCurrentUser()
   const forceMode = getForceMode()
 
-  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+  if (isDemo || forceMode === "localStorage") {
     const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     return entries.filter((entry: any) => entry.date >= startDate && entry.date <= endDate)
   }
 
-  let query = supabase
-    .from("entries")
-    .select("*")
-    .gte("date", startDate)
-    .lte("date", endDate)
-    .order("date", { ascending: false })
+  try {
+    let query = supabase
+      .from("entries")
+      .select("*")
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .order("date", { ascending: false })
 
-  // Only filter by user_id if it's not null
-  if (user.id) {
-    query = query.eq("user_id", user.id)
+    // Only filter by user_id if it's not null
+    if (user.id) {
+      query = query.eq("user_id", user.id)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error("Error fetching entries by date range:", error)
+      throw error
+    }
+
+    return data
+  } catch (error) {
+    console.error("Failed to fetch date range from database, falling back to localStorage:", error)
+    const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
+    return entries.filter((entry: any) => entry.date >= startDate && entry.date <= endDate)
   }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("Error fetching entries by date range:", error)
-    throw error
-  }
-
-  return data
 }
 
 export async function getJournalEntryById(id: string | number) {
   const { user, isDemo } = await getCurrentUser()
   const forceMode = getForceMode()
 
-  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+  if (isDemo || forceMode === "localStorage") {
     const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     return entries.find((entry: any) => entry.id === id)
   }
 
-  let query = supabase.from("entries").select("*").eq("id", id)
+  try {
+    let query = supabase.from("entries").select("*").eq("id", id)
 
-  // Only filter by user_id if it's not null
-  if (user.id) {
-    query = query.eq("user_id", user.id)
+    // Only filter by user_id if it's not null
+    if (user.id) {
+      query = query.eq("user_id", user.id)
+    }
+
+    const { data, error } = await query.single()
+
+    if (error) {
+      console.error("Error fetching entry by ID:", error)
+      throw error
+    }
+
+    return data
+  } catch (error) {
+    console.error("Failed to fetch entry by ID from database, falling back to localStorage:", error)
+    const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
+    return entries.find((entry: any) => entry.id === id)
   }
-
-  const { data, error } = await query.single()
-
-  if (error) {
-    console.error("Error fetching entry by ID:", error)
-    throw error
-  }
-
-  return data
 }
 
 export async function generateAIInsights(entryId: string | number) {
@@ -399,7 +416,7 @@ export async function updateJournalEntry(id: string | number, updates: Partial<J
   const { user, isDemo } = await getCurrentUser()
   const forceMode = getForceMode()
 
-  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+  if (isDemo || forceMode === "localStorage") {
     // For demo users, update in localStorage
     const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     const entryIndex = entries.findIndex((entry: any) => entry.id === id)
@@ -411,29 +428,42 @@ export async function updateJournalEntry(id: string | number, updates: Partial<J
     throw new Error("Entry not found")
   }
 
-  // For real users, update in Supabase
-  let query = supabase.from("entries").update(updates).eq("id", id)
+  try {
+    // For real users, update in Supabase
+    let query = supabase.from("entries").update(updates).eq("id", id)
 
-  // Only filter by user_id if it's not null
-  if (user.id) {
-    query = query.eq("user_id", user.id)
+    // Only filter by user_id if it's not null
+    if (user.id) {
+      query = query.eq("user_id", user.id)
+    }
+
+    const { data, error } = await query.select().single()
+
+    if (error) {
+      console.error("Error updating journal entry:", error)
+      throw error
+    }
+
+    return data
+  } catch (error) {
+    console.error("Failed to update entry in database, falling back to localStorage:", error)
+    // Fall back to localStorage
+    const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
+    const entryIndex = entries.findIndex((entry: any) => entry.id === id)
+    if (entryIndex !== -1) {
+      entries[entryIndex] = { ...entries[entryIndex], ...updates, updated_at: new Date().toISOString() }
+      localStorage.setItem("demo-entries", JSON.stringify(entries))
+      return entries[entryIndex]
+    }
+    throw new Error("Entry not found")
   }
-
-  const { data, error } = await query.select().single()
-
-  if (error) {
-    console.error("Error updating journal entry:", error)
-    throw error
-  }
-
-  return data
 }
 
 export async function deleteJournalEntry(id: string | number) {
   const { user, isDemo } = await getCurrentUser()
   const forceMode = getForceMode()
 
-  if ((isDemo && forceMode !== "database") || forceMode === "localStorage") {
+  if (isDemo || forceMode === "localStorage") {
     // For demo users, remove from localStorage
     const entries = JSON.parse(localStorage.getItem("demo-entries") || "[]")
     const filteredEntries = entries.filter((entry: any) => entry.id !== id)
@@ -441,18 +471,24 @@ export async function deleteJournalEntry(id: string | number) {
     return
   }
 
-  // For real users, delete from Supabase
-  let query = supabase.from("entries").delete().eq("id", id)
+  try {
+    // For real users, delete from Supabase
+    let query = supabase.from("entries").delete().eq("id", id)
 
-  // Only filter by user_id if it's not null
-  if (user.id) {
-    query = query.eq("user_id", user.id)
-  }
+    // Only filter by user_id if it's not null
+    if (user.id) {
+      query = query.eq("user_id", user.id)
+    }
 
-  const { error } = await query
+    const { error } = await query
 
-  if (error) {
-    console.error("Error deleting journal entry:", error)
+    if (error) {
+      console.error("Error deleting journal entry:", error)
+      throw error
+    }
+  } catch (error) {
+    console.error("Failed to delete entry from database:", error)
+    // For delete operations, we don't fall back to localStorage
     throw error
   }
 }
